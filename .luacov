@@ -1,0 +1,6 @@
+codefromstrings = false
+runreport = true
+deletestats = false
+modules = {
+    ["form.urlencoded"] = "lib/urlencoded.lua",
+}
