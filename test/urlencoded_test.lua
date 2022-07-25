@@ -61,18 +61,34 @@ function testcase.encode()
 end
 
 function testcase.decode()
+    local str = table.concat({
+        -- key/val pair
+        'foo=hello+world!',
+        -- empty
+        '',
+        ' ',
+        -- multiple keys
+        'bar.qux=hello',
+        'bar.qux=world',
+        -- nested key
+        'bar.qux.quux=value',
+        -- with spaces
+        '  \thello=world \t ',
+        -- key only
+        'key',
+        -- with no value
+        'no-value=',
+        -- with no key
+        '=no-key',
+        -- only spaces
+        '  \t \t  ',
+    }, '&')
+
     -- test that decode form string into table
-    local tbl = assert(urlencoded.decode(
-                           'foo=hello+world!&bar.qux=hello&bar.qux=world&bar.qux.quux=value&bar.baa=true&bar.baz=123.5'))
+    local tbl = assert(urlencoded.decode(str))
     assert.equal(tbl, {
         foo = {
             'hello world!',
-        },
-        ['bar.baa'] = {
-            'true',
-        },
-        ['bar.baz'] = {
-            '123.5',
         },
         ['bar.qux'] = {
             'hello',
@@ -81,23 +97,24 @@ function testcase.decode()
         ['bar.qux.quux'] = {
             'value',
         },
+        ['hello'] = {
+            'world',
+        },
+        key = {
+            '',
+        },
+        ['no-value'] = {
+            '',
+        },
     })
 
     -- test that decode form string into table deeply
-    tbl = assert(urlencoded.decode(
-                     'foo=hello+world!&bar.qux=hello&bar.qux=world&bar.qux.quux=value&bar.baa=true&bar.baz=123.5',
-                     true))
+    tbl = assert(urlencoded.decode(str, true))
     assert.equal(tbl, {
         foo = {
             'hello world!',
         },
         bar = {
-            baa = {
-                'true',
-            },
-            baz = {
-                '123.5',
-            },
             qux = {
                 'hello',
                 'world',
@@ -106,11 +123,30 @@ function testcase.decode()
                 },
             },
         },
+        hello = {
+            'world',
+        },
+        key = {
+            '',
+        },
+        ['no-value'] = {
+            '',
+        },
     })
 
     -- test that return empty-table
     tbl = assert(urlencoded.decode(''))
     assert.empty(tbl)
+
+    for _, v in ipairs({
+        'fo%0o',
+        'fo%0o=bar',
+        'foo=ba%r',
+    }) do
+        -- test that EILSEQ if invalid character found in key
+        local _, err = urlencoded.decode(v)
+        assert.match(err, 'illegal character "%" found')
+    end
 
     -- test that throws an error if str argument is not string
     local err = assert.throws(urlencoded.decode, true)

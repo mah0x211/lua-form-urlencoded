@@ -24,6 +24,7 @@ local floor = math.floor
 local concat = table.concat
 local find = string.find
 local format = string.format
+local gmatch = string.gmatch
 local gsub = string.gsub
 local sub = string.sub
 local tostring = tostring
@@ -123,16 +124,14 @@ end
 
 --- decode_value
 --- @param v string
---- @param vhead integer
 --- @return string v
 --- @return any err
-local function decode_value(v, vhead)
+local function decode_value(v)
     local dec, err = decode_uri(v)
     if err then
         return nil,
-               new_errno('EILSEQ', format('illegal character %q found at %d',
-                                          sub(v, err, err), vhead + err),
-                         'urlencoded.decode')
+               new_errno('EILSEQ', format('illegal character %q found',
+                                          sub(v, err, err)), 'urlencoded.decode')
     end
 
     -- replace '+' to SP
@@ -200,67 +199,36 @@ local function decode(str, deeply)
     end
 
     local form = {}
-    local tail = #str
-    local key, val, err
 
-    -- find key: '...='
-    local khead = 1
-    local ktail = find(str, '=', khead, true)
-    while ktail do
-        if khead == ktail then
-            -- key not found
-            -- skip value: '=...&'
-            khead = find(str, '&', ktail, true)
-            if not khead then
-                -- end-of-data
-                return form
-            end
-            khead = khead + 1
-        else
-            -- decode key
-            key, err = decode_value(sub(str, khead, ktail - 1), khead)
-            if err then
-                return nil, err
-            end
+    for key in gmatch(str, '[^&]+') do
+        -- trim leading and trailing spaces
+        key = string.match(key, '^%s*(.-)%s*$')
+        if #key > 0 then
+            local ktail = find(key, '=', 1, true)
 
-            -- find val: '...&'
-            local vhead = ktail + 1
-            local vtail = find(str, '&', vhead, true)
-            if not vtail then
-                -- end-of-data
-                -- decode val
-                val, err = decode_value(sub(str, vhead), vhead)
+            if not ktail then
+                -- decode key
+                local k, err = decode_value(key)
+                if err then
+                    return nil, err
+                end
+                push2form(form, k, '', deeply)
+            elseif ktail > 1 then
+                -- decode key
+                local k, err = decode_value(sub(key, 1, ktail - 1))
                 if err then
                     return nil, err
                 end
 
-                return push2form(form, key, val, deeply)
-
-            elseif vhead == vtail then
-                -- val not found
-                push2form(form, key, '', deeply)
-            else
                 -- decode val
-                val, err = decode_value(sub(str, vhead, vtail - 1), vhead)
+                local v
+                v, err = decode_value(sub(key, ktail + 1))
                 if err then
                     return nil, err
                 end
-                push2form(form, key, val, deeply)
+                push2form(form, k, v, deeply)
             end
-
-            khead = vtail + 1
         end
-
-        -- find key: '...='
-        ktail = find(str, '=', khead, true)
-    end
-
-    if khead < tail then
-        key, err = decode_value(sub(str, khead), khead)
-        if err then
-            return nil, err
-        end
-        return push2form(form, key, '', deeply)
     end
 
     return form
