@@ -4,15 +4,25 @@ local urlencoded = require('form.urlencoded')
 
 function testcase.encode()
     local form = {
-        foo = 'hello world!',
-        hello = 'world',
+        foo = {
+            'hello world!',
+        },
+        hello = {
+            'world',
+        },
         bar = {
-            baa = true,
-            baz = 123.5,
+            baa = {
+                true,
+            },
+            baz = {
+                123.5,
+            },
             qux = {
                 'hello',
                 'world',
-                quux = 'value',
+                quux = {
+                    'value',
+                },
             },
         },
     }
@@ -68,8 +78,23 @@ function testcase.encode()
     assert.equal(n, 0)
     assert.equal(n, #str)
 
+    -- test that error from writer
+    str = ''
+    local err
+    n, err = urlencoded.encode({
+        write = function()
+            return nil, 'write error'
+        end,
+    }, {
+        hello = {
+            'world',
+        },
+    })
+    assert.is_nil(n, 0)
+    assert.match(err, 'write error')
+
     -- test that throws an error if writer argument is invalid
-    local err = assert.throws(urlencoded.encode, 'hello')
+    err = assert.throws(urlencoded.encode, 'hello')
     assert.match(err, 'writer.write must be function')
 
     -- test that throws an error if form argument is invalid
@@ -190,8 +215,19 @@ function testcase.decode()
         assert.match(err, 'illegal character "%" found')
     end
 
+    -- test that error from reader
+    str = data
+    local err
+    tbl, err = urlencoded.decode({
+        read = function()
+            return nil, 'read error'
+        end,
+    })
+    assert.is_nil(tbl)
+    assert.match(err, 'read error')
+
     -- test that throws an error if reader.read is not function
-    local err = assert.throws(urlencoded.decode, {})
+    err = assert.throws(urlencoded.decode, {})
     assert.match(err, 'reader.read must be function')
 
     -- test that throws an error if chunksize is not uint
