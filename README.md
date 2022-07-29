@@ -53,14 +53,22 @@ local writer = {
 -- encode a table to application/x-www-form-urlencoded format string
 str = ''
 local n = urlencoded.encode(writer, {
-    foo = 'hello world!',
+    foo = {
+        'hello world!',
+    },
     bar = {
-        baa = true,
-        baz = 123.5,
+        baa = {
+            true,
+        },
+        baz = {
+            123.5,
+        },
         qux = {
             'hello',
             'world',
-            quux = 'value',
+            quux = {
+                'value',
+            },
         },
     },
 })
@@ -70,14 +78,22 @@ print(str) -- foo=hello+world!
 -- deeply encode a table to application/x-www-form-urlencoded format string
 str = ''
 n = urlencoded.encode(writer, {
-    foo = 'hello world!',
+    foo = {
+        'hello world!',
+    },
     bar = {
-        baa = true,
-        baz = 123.5,
+        baa = {
+            true,
+        },
+        baz = {
+            123.5,
+        },
         qux = {
             'hello',
             'world',
-            quux = 'value',
+            quux = {
+                'value',
+            },
         },
     },
 }, true)

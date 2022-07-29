@@ -151,17 +151,19 @@ local function encode(writer, form, deeply)
     local prev
     local nbyte = 0
     for k, v in pairs(form) do
-        if is_string(k) then
-            local val = encode_value(v)
-            if val then
-                if prev then
-                    local n, err = writer:write(prev .. '&')
-                    if err then
-                        return nil, err
+        if is_string(k) and is_table(v) then
+            for _, val in ipairs(v) do
+                val = encode_value(val)
+                if val then
+                    if prev then
+                        local n, err = writer:write(prev .. '&')
+                        if err then
+                            return nil, err
+                        end
+                        nbyte = nbyte + n
                     end
-                    nbyte = nbyte + n
+                    prev = encode_url(k) .. '=' .. val
                 end
-                prev = encode_url(k) .. '=' .. val
             end
         end
     end
