@@ -20,7 +20,6 @@
 -- THE SOFTWARE.
 --
 --- assign to local
-local concat = table.concat
 local find = string.find
 local format = string.format
 local gsub = string.gsub
@@ -36,88 +35,146 @@ local is_int = isa.int
 local is_uint = isa.uint
 local is_table = isa.table
 local is_func = isa.func
-local flatten = require('table.flatten')
 local encode_uri = require('url').encode_uri
 local decode_uri = require('url').decode_uri
 local new_errno = require('errno').new
 
---- insert_into_list
---- @param list string[]
---- @param key string
---- @param val string
-local function insert_into_list(list, key, val)
-    if key then
-        key = gsub(key, ' ', '+')
-        val = gsub(val, ' ', '+')
-        list[#list + 1] = encode_uri(key) .. '=' .. encode_uri(val)
-    end
+--- encode_url
+--- @param v string
+--- @return string v
+local function encode_url(v)
+    return encode_uri(gsub(v, ' ', '+'))
 end
 
---- encode_pair
---- @param key string
---- @param val any
---- @return string key
---- @return string val
-local function encode_pair(key, val)
-    -- ignore parameters that begin with a numeric index
-    if find(key, '^[a-zA-Z_]') then
-        -- ignore parameters that begin with a numeric index
-        local t = type(val)
-        if t == 'string' then
-            return key, val
-        elseif t == 'number' or t == 'boolean' then
-            return key, tostring(val)
-        end
+--- encode_value
+--- @param v any
+--- @return string|nil v
+--- @return boolean|nil is_child
+local function encode_value(v)
+    local t = type(v)
+    if t == 'string' then
+        return encode_url(v)
+    elseif t == 'number' or t == 'boolean' then
+        return encode_url(tostring(v))
     end
-    -- ignore arguments except string|number|boolean
+    return nil, t == 'table'
 end
 
---- key2str
---- @param prefix string
---- @param key any
---- @return string?
-local function key2str(prefix, key)
-    if is_string(key) then
+--- to_flatkey
+---@param k any
+---@param prefix string|nil
+---@return string|nil
+local function to_flatkey(k, prefix)
+    if is_string(k) then
         if prefix then
-            return prefix .. '.' .. key
+            return prefix .. '.' .. k
         end
-        return key
-    elseif is_int(key) then
+        return k
+    elseif is_int(k) and prefix then
         return prefix
     end
+end
+
+--- encode_flat
+---@param writer table|userdata
+---@param form table
+---@return integer|nil nbyte
+---@return any error
+local function encode_flat(writer, form)
+    local stack = {}
+    local ctx = {
+        tbl = form,
+    }
+    local nbyte = 0
+    local circular = {}
+    local prev
+
+    while ctx do
+        local prefix = ctx.prefix
+
+        circular[ctx.tbl] = true
+        for k, v in pairs(ctx.tbl) do
+            local key = to_flatkey(k, prefix)
+            if key then
+                local val, is_child = encode_value(v)
+                if val then
+                    if prev then
+                        local n, err = writer:write(prev .. '&')
+                        if err then
+                            return nil, err
+                        end
+                        nbyte = nbyte + n
+                    end
+                    prev = encode_url(key) .. '=' .. val
+                elseif is_child and not circular[v] then
+                    stack[#stack + 1] = {
+                        prefix = key,
+                        tbl = v,
+                    }
+                end
+            end
+        end
+
+        ctx = stack[#stack]
+        stack[#stack] = nil
+    end
+
+    if prev then
+        local n, err = writer:write(prev)
+        if err then
+            return nil, err
+        end
+        return nbyte + n
+    end
+
+    return 0
 end
 
 --- encode
 --- @param form table
 --- @param deeply boolean
---- @return string str
-local function encode(form, deeply)
-    if not is_table(form) then
+--- @return integer|nil nbyte
+--- @return any err
+local function encode(writer, form, deeply)
+    if not pcall(function()
+        assert(is_func(writer.write))
+    end) then
+        error('writer.write must be function', 2)
+    elseif not is_table(form) then
         error('form must be table', 2)
     elseif deeply ~= nil and not is_boolean(deeply) then
         error('deeply must be boolean', 2)
+    elseif deeply then
+        return encode_flat(writer, form)
     end
 
-    local list
-    if deeply then
-        list = flatten(form, 0, encode_pair, insert_into_list, key2str)
-    else
-        list = {}
-        for k, v in pairs(form) do
-            if is_string(k) then
-                k, v = encode_pair(k, v)
-                if k then
-                    insert_into_list(list, k, v)
+    local prev
+    local nbyte = 0
+    for k, v in pairs(form) do
+        if is_string(k) then
+            local val = encode_value(v)
+            if val then
+                if prev then
+                    local n, err = writer:write(prev .. '&')
+                    if err then
+                        return nil, err
+                    end
+                    nbyte = nbyte + n
                 end
+                prev = encode_url(k) .. '=' .. val
             end
         end
     end
 
-    -- set new query-string
-    if #list > 0 then
-        return concat(list, '&')
+    if prev then
+        local n, err = writer:write(prev)
+        if err then
+            return nil, err
+        end
+        return nbyte + n
     end
-    return ''
+
+    return nbyte
 end
 
 --- push2form

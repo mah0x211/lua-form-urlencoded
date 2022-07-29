@@ -15,18 +15,26 @@ luarocks install form-urlencoded
 ```
 
 
-## str = urlencoded.encode( form [, deeply] )
+## n, err = urlencoded.encode( writer, form [, deeply] )
 
-encode a table to `application/x-www-form-urlencoded` format string.
+encode a form table to string in `application/x-www-form-urlencoded` format.
 
 **Parameters**
 
+- `writer:table|userdata`: call the `writer:write` method to output a string in `application/x-www-form-urlencoded` format.
+    ```
+    n, err = writer:write( s )
+    - n:integer: number of bytes written.
+    - err:any: error value.
+    - s:string: output string.
+    ```
 - `form:table`: a table.
-- `deeply:boolean`: `true` to deeply encode a table.
+- `deeply:boolean`: `true` to deeply encode a table. (default: `false`)
 
 **Returns**
 
-- `str:string`: a `application/x-www-form-urlencoded` string.
+- `n:integer`: total number of bytes written.
+- `err:any`: error value.
 
 
 **Usage**
@@ -34,9 +42,17 @@ encode a table to `application/x-www-form-urlencoded` format string.
 
 ```lua
 local urlencoded = require('form.urlencoded')
+local str
+local writer = {
+    write = function(_, s)
+        str = str .. s
+        return #s
+    end,
+}
 
 -- encode a table to application/x-www-form-urlencoded format string
-local str = urlencoded.encode({
+str = ''
+local n = urlencoded.encode(writer, {
     foo = 'hello world!',
     bar = {
         baa = true,
@@ -48,10 +64,12 @@ local str = urlencoded.encode({
         },
     },
 })
+assert(n == #str)
 print(str) -- foo=hello+world!
 
 -- deeply encode a table to application/x-www-form-urlencoded format string
-str = urlencoded.encode({
+str = ''
+n = urlencoded.encode(writer, {
     foo = 'hello world!',
     bar = {
         baa = true,
@@ -63,6 +81,7 @@ str = urlencoded.encode({
         },
     },
 }, true)
+assert(n == #str)
 print(str) -- foo=hello+world!&bar.baz=123.5&bar.baa=true&bar.qux=hello&bar.qux=world&bar.qux.quux=value
 ```
 

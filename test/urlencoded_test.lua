@@ -5,6 +5,7 @@ local urlencoded = require('form.urlencoded')
 function testcase.encode()
     local form = {
         foo = 'hello world!',
+        hello = 'world',
         bar = {
             baa = true,
             baz = 123.5,
@@ -15,19 +16,32 @@ function testcase.encode()
             },
         },
     }
+    local str
+    local writer = {
+        write = function(_, s)
+            str = str .. s
+            return #s
+        end,
+    }
 
     -- test that encode form table to string
-    local str = assert(urlencoded.encode(form))
+    str = ''
+    local n = assert(urlencoded.encode(writer, form))
+    assert.equal(n, #str)
     local kvpairs = {}
     for kv in string.gmatch(str, '([^&]+)') do
         kvpairs[#kvpairs + 1] = kv
     end
+    table.sort(kvpairs)
     assert.equal(kvpairs, {
         'foo=hello+world!',
+        'hello=world',
     })
 
     -- test that encode form table to string deeply
-    str = assert(urlencoded.encode(form, true))
+    str = ''
+    n = assert(urlencoded.encode(writer, form, true))
+    assert.equal(n, #str)
     kvpairs = {}
     for kv in string.gmatch(str, '([^&]+)') do
         kvpairs[#kvpairs + 1] = kv
@@ -40,23 +54,30 @@ function testcase.encode()
         'bar.qux=hello',
         'bar.qux=world',
         'foo=hello+world!',
+        'hello=world',
     })
 
     -- test that return empty-string
-    str = assert(urlencoded.encode({
+    str = ''
+    n = assert(urlencoded.encode(writer, {
         'hello',
         bar = {
             qux = {},
         },
     }, true))
-    assert.equal(str, '')
+    assert.equal(n, 0)
+    assert.equal(n, #str)
 
-    -- test that throws an error if form argument is not table
+    -- test that throws an error if writer argument is invalid
     local err = assert.throws(urlencoded.encode, 'hello')
+    assert.match(err, 'writer.write must be function')
+
+    -- test that throws an error if form argument is invalid
+    err = assert.throws(urlencoded.encode, writer, 'hello')
     assert.match(err, 'form must be table')
 
-    -- test that throws an error if deeply argument is not boolean
-    err = assert.throws(urlencoded.encode, {}, 'hello')
+    -- test that throws an error if deeply argument is invalid
+    err = assert.throws(urlencoded.encode, writer, {}, 'hello')
     assert.match(err, 'deeply must be boolean')
 end
 
