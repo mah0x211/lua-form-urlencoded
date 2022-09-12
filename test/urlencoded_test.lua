@@ -25,6 +25,9 @@ function testcase.encode()
                 },
             },
         },
+        multiline = {
+            'multi/\nline',
+        },
     }
     local str
     local writer = {
@@ -44,8 +47,9 @@ function testcase.encode()
     end
     table.sort(kvpairs)
     assert.equal(kvpairs, {
-        'foo=hello+world!',
+        'foo=hello+world%21',
         'hello=world',
+        'multiline=multi%2F%0Aline',
     })
 
     -- test that encode form table to string deeply
@@ -63,8 +67,9 @@ function testcase.encode()
         'bar.qux.quux=value',
         'bar.qux=hello',
         'bar.qux=world',
-        'foo=hello+world!',
+        'foo=hello+world%21',
         'hello=world',
+        'multiline=multi%2F%0Aline',
     })
 
     -- test that return empty-string
@@ -109,7 +114,8 @@ end
 function testcase.decode()
     local data = table.concat({
         -- key/val pair
-        'foo=hello+world!',
+        'foo=hello+world%21',
+        'multiline=multi%2F%0Aline',
         -- empty
         '',
         ' ',
@@ -149,6 +155,9 @@ function testcase.decode()
         foo = {
             'hello world!',
         },
+        multiline = {
+            'multi/\nline',
+        },
         ['bar.qux'] = {
             'hello',
             'world',
@@ -176,6 +185,9 @@ function testcase.decode()
     assert.equal(tbl, {
         foo = {
             'hello world!',
+        },
+        multiline = {
+            'multi/\nline',
         },
         bar = {
             qux = {
