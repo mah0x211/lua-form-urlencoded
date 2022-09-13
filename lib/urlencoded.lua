@@ -22,7 +22,6 @@
 --- assign to local
 local find = string.find
 local format = string.format
-local gsub = string.gsub
 local sub = string.sub
 local match = string.match
 local tostring = tostring
@@ -35,16 +34,12 @@ local is_int = isa.int
 local is_uint = isa.uint
 local is_table = isa.table
 local is_func = isa.func
-local encode_uri = require('url').encode_uri
-local decode_uri = require('url').decode_uri
-local new_errno = require('errno').new
-
---- encode_url
---- @param v string
---- @return string v
-local function encode_url(v)
-    return encode_uri(gsub(v, ' ', '+'))
-end
+local encode_form = require('url').encode_form
+local decode_form = require('url').decode_form
+local new_error_type = require('error').type.new
+-- constants
+local EDECODE = new_error_type('form.urlencoded.decode', nil,
+                               'form-urlencoded decode error')
 
 --- encode_value
 --- @param v any
@@ -53,9 +48,9 @@ end
 local function encode_value(v)
     local t = type(v)
     if t == 'string' then
-        return encode_url(v)
+        return encode_form(v)
     elseif t == 'number' or t == 'boolean' then
-        return encode_url(tostring(v))
+        return encode_form(tostring(v))
     end
     return nil, t == 'table'
 end
@@ -105,7 +100,7 @@ local function encode_flat(writer, form)
                         end
                         nbyte = nbyte + n
                     end
-                    prev = encode_url(key) .. '=' .. val
+                    prev = encode_form(key) .. '=' .. val
                 elseif is_child and not circular[v] then
                     stack[#stack + 1] = {
                         prefix = key,
@@ -162,7 +157,7 @@ local function encode(writer, form, deeply)
                         end
                         nbyte = nbyte + n
                     end
-                    prev = encode_url(k) .. '=' .. val
+                    prev = encode_form(k) .. '=' .. val
                 end
             end
         end
@@ -231,15 +226,11 @@ end
 --- @return string v
 --- @return any err
 local function decode_value(v)
-    local dec, err = decode_uri(v)
+    local dec, err = decode_form(v)
     if err then
-        return nil,
-               new_errno('EILSEQ', format('illegal character %q found',
-                                          sub(v, err, err)), 'urlencoded.decode')
+        return nil, EDECODE:new(
+                   format('illegal character %q found', sub(v, err, err)))
     end
-
-    -- replace '+' to SP
-    dec = gsub(dec, '%+', ' ')
     return dec
 end
 

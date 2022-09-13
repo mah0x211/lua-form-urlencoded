@@ -13,11 +13,11 @@ dependencies = {
     "lua >= 5.1",
     "errno >= 0.3.0",
     "isa >= 0.3.0",
-    "url >= 2.0.0",
+    "url >= 2.1.0",
 }
 build = {
     type = "builtin",
     modules = {
-        ['form.urlencoded'] = "lib/urlencoded.lua",
+        ["form.urlencoded"] = "lib/urlencoded.lua",
     },
 }
