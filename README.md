@@ -93,25 +93,26 @@ print(str) -- foo=hello+world%21&bar.baz=123.5&bar.qux=hello&bar.qux=world&bar.q
 ```
 
 
-## form, err = urlencoded.decode( reader [, chunksize [, deeply]] )
+## form, err = urlencoded.decode( reader [, deeply [, chunksize]] )
 
-decode a table to `application/x-www-form-urlencoded` format string.
+decode a string in `application/x-www-form-urlencoded` format into a table.
 
 **Parameters**
 
-- `reader:table|userdata`: reads a string in `application/x-www-form-urlencoded` format with the `reader:read` method.
-    ```
-    s, err = reader:read( n )
-    - n:integer: number of bytes read.
-    - s:string: a string in application/x-www-form-urlencoded format.
-    - err:any: error value.
-    ```
-- `chunksize:integer`: number of byte to read from the `reader.read` method. this value must be greater than `0`. (default: `4096`)
+- `reader:string|table|userdata`: a string in `application/x-www-form-urlencoded` format.
+    - if the `reader` parameter is not a string, it must have a `reader.read` method.
+      ```
+      s, err = reader:read( n )
+      - n:integer: number of bytes read.
+      - s:string: a string in application/x-www-form-urlencoded format.
+      - err:any: error value.
+      ```
 - `deeply:boolean`: `true` to deeply decode a `application/x-www-form-urlencoded` string.
+- `chunksize:integer`: if the `reader` parameter is not a string, number of byte to read from the `reader.read` method. this value must be greater than `0`. (default: `4096`)
 
 **Returns**
 
-- `form:table`: a table string.
+- `form:table`: a table contains the decoded values.
 - `err:any`: an error value.
 
 **Usage**
@@ -119,20 +120,11 @@ decode a table to `application/x-www-form-urlencoded` format string.
 ```lua
 local dump = require('dump')
 local urlencoded = require('form.urlencoded')
-local data = 'foo=hello+world!&bar.baz=123.5&bar.baa=true&bar.qux=hello&bar.qux=world&bar.qux.quux=value'
-local str
-local reader = {
-    read = function(_, n)
-        if #str > 0 then
-            local s = string.sub(str, 1, n)
-            str = string.sub(str, n + 1)
-            return s
-        end
-    end,
-}
+local data =
+    'foo=hello+world!&bar.baz=123.5&bar.baa=true&bar.qux=hello&bar.qux=world&bar.qux.quux=value'
+
 -- decode a application/x-www-form-urlencoded string to a table
-str = data
-local form = urlencoded.decode(reader)
+local form = urlencoded.decode(data)
 print(dump(form))
 -- {
 --     ["bar.baa"] = {
@@ -154,8 +146,7 @@ print(dump(form))
 -- }
 
 -- deeply decode a application/x-www-form-urlencoded string to a table
-str = data
-form = urlencoded.decode(reader, nil, true)
+form = urlencoded.decode(data, true)
 print(dump(form))
 -- {
 --     bar = {

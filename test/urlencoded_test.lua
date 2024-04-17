@@ -222,6 +222,118 @@ function testcase.decode()
         -- last data
         'last-key=last-value',
     }, '&')
+
+    -- test that decode form string into table
+    local tbl = assert(urlencoded.decode(data))
+    assert.equal(tbl, {
+        foo = {
+            'hello world!',
+        },
+        multiline = {
+            'multi/\nline',
+        },
+        ['bar.qux'] = {
+            'hello',
+            'world',
+        },
+        ['bar.qux.quux'] = {
+            'value',
+        },
+        ['hello'] = {
+            'world',
+        },
+        key = {
+            '',
+        },
+        ['no-value'] = {
+            '',
+        },
+        ['last-key'] = {
+            'last-value',
+        },
+    })
+
+    -- test that decode form string into table deeply
+    tbl = assert(urlencoded.decode(data, true))
+    assert.equal(tbl, {
+        foo = {
+            'hello world!',
+        },
+        multiline = {
+            'multi/\nline',
+        },
+        bar = {
+            qux = {
+                'hello',
+                'world',
+                quux = {
+                    'value',
+                },
+            },
+        },
+        hello = {
+            'world',
+        },
+        key = {
+            '',
+        },
+        ['no-value'] = {
+            '',
+        },
+        ['last-key'] = {
+            'last-value',
+        },
+    })
+
+    -- test that return empty-table
+    tbl = assert(urlencoded.decode(''))
+    assert.empty(tbl)
+
+    for _, v in ipairs({
+        'fo%0o',
+        'fo%0o=bar',
+        'foo=ba%r',
+    }) do
+        -- test that EILSEQ if invalid character found in key
+        local _, err = urlencoded.decode(v)
+        assert.match(err, 'illegal character "%" found')
+    end
+
+    -- test that throws an error if first argument is not string
+    local err = assert.throws(urlencoded.decode, true)
+    assert.match(err, 'reader must be string')
+
+    -- test that throws an error if deeply argument is not boolean
+    err = assert.throws(urlencoded.decode, '', 'true')
+    assert.match(err, 'deeply must be boolean')
+end
+
+function testcase.decode_with_reader()
+    local data = table.concat({
+        -- key/val pair
+        'foo=hello+world%21',
+        'multiline=multi%2F%0Aline',
+        -- empty
+        '',
+        ' ',
+        -- multiple keys
+        'bar.qux=hello',
+        'bar.qux=world',
+        -- nested key
+        'bar.qux.quux=value',
+        -- with spaces
+        '  \thello=world \t ',
+        -- key only
+        'key',
+        -- with no value
+        'no-value=',
+        -- with no key
+        '=no-key',
+        -- only spaces
+        '  \t \t  ',
+        -- last data
+        'last-key=last-value',
+    }, '&')
     local str = data
     local reader = {
         read = function(_, n)
@@ -266,7 +378,7 @@ function testcase.decode()
 
     -- test that decode form string into table deeply
     str = data
-    tbl = assert(urlencoded.decode(reader, 2, true))
+    tbl = assert(urlencoded.decode(reader, true, 2))
     assert.equal(tbl, {
         foo = {
             'hello world!',
@@ -325,14 +437,10 @@ function testcase.decode()
 
     -- test that throws an error if reader.read is not function
     err = assert.throws(urlencoded.decode, {})
-    assert.match(err, 'reader.read must be function')
+    assert.match(err, 'reader must be string or it must have read method')
 
     -- test that throws an error if chunksize is not uint
-    err = assert.throws(urlencoded.decode, reader, true)
+    err = assert.throws(urlencoded.decode, reader, nil, true)
     assert.match(err, 'chunksize must be uint greater than 0')
-
-    -- test that throws an error if deeply argument is not boolean
-    err = assert.throws(urlencoded.decode, reader, nil, 'true')
-    assert.match(err, 'deeply must be boolean')
 end
 

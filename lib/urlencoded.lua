@@ -31,10 +31,8 @@ local tostring = tostring
 local pcall = pcall
 local type = type
 local is = require('lauxhlib.is')
-local is_boolean = is.bool
 local is_int = is.int
 local is_uint = is.uint
-local is_func = is.func
 local encode_form = require('url').encode_form
 local decode_form = require('url').decode_form
 -- constants
@@ -300,51 +298,36 @@ end
 --- @field read fun(self, n:integer):(s:string?,err:any)
 
 --- decode
---- @param reader form.urlencoded.reader
+--- @param reader string|form.urlencoded.reader
 --- @param deeply boolean
---- @return table|nil form
+--- @param chunksize? integer
+--- @return table? form
 --- @return any err
-local function decode(reader, chunksize, deeply)
-    -- verify reader
-    if not pcall(function()
-        assert(is_func(reader.read))
-    end) then
-        error('reader.read must be function', 2)
-    end
+local function decode(reader, deeply, chunksize)
+    local str = ''
+    local with_reader = true
 
-    -- verify chunksize
-    if chunksize == nil then
+    -- verify reader
+    if type(reader) == 'string' then
+        str = reader
+        with_reader = false
+    elseif not pcall(function()
+        assert(type(reader.read) == 'function')
+    end) then
+        error('reader must be string or it must have read method', 2)
+    elseif chunksize == nil then
         chunksize = 4096
     elseif not is_uint(chunksize) or chunksize < 1 then
         error('chunksize must be uint greater than 0', 2)
     end
 
     -- verify deeply
-    if deeply ~= nil and not is_boolean(deeply) then
+    if deeply ~= nil and type(deeply) ~= 'boolean' then
         error('deeply must be boolean', 2)
     end
 
     local form = {}
-    local str = ''
-
     while true do
-        -- read chunk
-        local s, err = reader:read(chunksize)
-        if err then
-            return nil, err
-        elseif not s or #s == 0 then
-            -- use remaining string as key
-            str = match(str, '^%s*(.-)%s*$')
-            if #str > 0 then
-                err = decode_kvpair(form, str, deeply)
-                if err then
-                    return nil, err
-                end
-            end
-            return form
-        end
-        str = str .. s
-
         -- find delimiter
         local head, tail = find(str, '&+')
         while head do
@@ -352,15 +335,37 @@ local function decode(reader, chunksize, deeply)
 
             str = sub(str, tail + 1)
             if #kv > 0 then
-                err = decode_kvpair(form, kv, deeply)
+                local err = decode_kvpair(form, kv, deeply)
                 if err then
                     return nil, err
                 end
             end
-
             head, tail = find(str, '&+')
         end
+
+        if not with_reader then
+            break
+        end
+
+        -- read chunk
+        local s, err = reader:read(chunksize)
+        if err then
+            return nil, err
+        elseif not s or #s == 0 then
+            break
+        end
+        str = str .. s
     end
+
+    -- use remaining string as key
+    str = match(str, '^%s*(.-)%s*$')
+    if #str > 0 then
+        local err = decode_kvpair(form, str, deeply)
+        if err then
+            return nil, err
+        end
+    end
+    return form
 end
 
 return {
