@@ -39,6 +39,29 @@ encode a form table to string in `application/x-www-form-urlencoded` format.
 - `err:any`: error value.
 
 
+**NOTE:**
+
+the supported value types are `string`, `number`, `boolean`, and `table`. if the value is a table, it will be encoded each value as multiple values like the following example.
+
+```
+{
+    key = {
+        'value-1',
+        'value-2',
+    }
+}
+
+```
+
+will be encoded as
+
+```
+key=value-1&key=value-2
+```
+
+it encodes only the first level of the table by default. if you want to encode deeply, set the `deeply` parameter to `true`.
+
+
 **Usage**
 
 
@@ -47,16 +70,14 @@ local urlencoded = require('form.urlencoded')
 
 -- encode a table to application/x-www-form-urlencoded format string
 local str = urlencoded.encode({
+    hello = 'world',
     foo = {
-        'hello world!',
+        'value-1',
+        'value-2',
     },
     bar = {
-        baa = {
-            true,
-        },
-        baz = {
-            123.5,
-        },
+        baa = true,
+        baz = 123.5,
         qux = {
             'hello',
             'world',
@@ -66,20 +87,18 @@ local str = urlencoded.encode({
         },
     },
 })
-print(str) -- foo=hello+world%21
+print(str) -- hello=world&foo=value-1&foo=value-2
 
--- deeply encode a table to application/x-www-form-urlencoded format string
+-- encode a table to application/x-www-form-urlencoded format string
 str = urlencoded.encode({
+    hello = 'world',
     foo = {
-        'hello world!',
+        'value-1',
+        'value-2',
     },
     bar = {
-        baa = {
-            true,
-        },
-        baz = {
-            123.5,
-        },
+        baa = true,
+        baz = 123.5,
         qux = {
             'hello',
             'world',
@@ -89,7 +108,7 @@ str = urlencoded.encode({
         },
     },
 }, true)
-print(str) -- foo=hello+world%21&bar.baz=123.5&bar.qux=hello&bar.qux=world&bar.qux.quux=value&bar.baa=true
+print(str) -- hello=world&bar.baa=true&bar.baz=123.5&bar.qux=hello&bar.qux=world&bar.qux.quux=value&foo=value-1&foo=value-2
 ```
 
 

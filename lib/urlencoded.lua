@@ -102,7 +102,7 @@ local function encode_flat(form, writer)
         for k, v in pairs(ctx.tbl) do
             local key = to_flatkey(k, prefix)
             if key then
-                local val, is_child = encode_value(v)
+                local val, has_child = encode_value(v)
                 if val then
                     if writer and prev then
                         local n, err = writer:write(prev .. '&')
@@ -112,7 +112,7 @@ local function encode_flat(form, writer)
                         nbyte = nbyte + n
                     end
                     prev = encode_form(key) .. '=' .. val
-                elseif is_child and not circular[v] then
+                elseif has_child and not circular[v] then
                     stack[#stack + 1] = {
                         prefix = key,
                         tbl = v,
@@ -169,10 +169,10 @@ local function encode(form, deeply, writer)
     local prev
     local nbyte = 0
     for k, v in pairs(form) do
-        if type(k) == 'string' and type(v) == 'table' then
-            k = encode_form(k)
-            for _, val in ipairs(v) do
-                val = encode_value(val)
+        if type(k) == 'string' then
+            local t = type(v)
+            if t == 'string' then
+                local val = encode_value(v)
                 if val then
                     if prev then
                         local n, err = writer:write(prev .. '&')
@@ -181,7 +181,22 @@ local function encode(form, deeply, writer)
                         end
                         nbyte = nbyte + n
                     end
-                    prev = k .. '=' .. val
+                    prev = encode_form(k) .. '=' .. val
+                end
+            elseif t == 'table' and #v > 0 then
+                k = encode_form(k)
+                for _, val in ipairs(v) do
+                    val = encode_value(val)
+                    if val then
+                        if prev then
+                            local n, err = writer:write(prev .. '&')
+                            if err then
+                                return nil, err
+                            end
+                            nbyte = nbyte + n
+                        end
+                        prev = k .. '=' .. val
+                    end
                 end
             end
         end

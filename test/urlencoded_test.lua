@@ -8,16 +8,10 @@ function testcase.encode()
         foo = {
             'hello world!',
         },
-        hello = {
-            'world',
-        },
+        hello = 'world',
         bar = {
-            baa = {
-                true,
-            },
-            baz = {
-                123.5,
-            },
+            baa = true,
+            baz = 123.5,
             qux = {
                 'hello',
                 'world',
@@ -88,16 +82,10 @@ function testcase.encode_with_writer()
         foo = {
             'hello world!',
         },
-        hello = {
-            'world',
-        },
+        hello = 'world',
         bar = {
-            baa = {
-                true,
-            },
-            baz = {
-                123.5,
-            },
+            baa = true,
+            baz = 123.5,
             qux = {
                 'hello',
                 'world',
