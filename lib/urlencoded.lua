@@ -20,6 +20,9 @@
 -- THE SOFTWARE.
 --
 --- assign to local
+local ipairs = ipairs
+local pairs = pairs
+local concat = table.concat
 local find = string.find
 local format = string.format
 local sub = string.sub
@@ -27,24 +30,19 @@ local match = string.match
 local tostring = tostring
 local pcall = pcall
 local type = type
-local isa = require('isa')
-local is_string = isa.string
-local is_boolean = isa.boolean
-local is_int = isa.int
-local is_uint = isa.uint
-local is_table = isa.table
-local is_func = isa.func
+local is = require('lauxhlib.is')
+local is_int = is.int
+local is_uint = is.uint
 local encode_form = require('url').encode_form
 local decode_form = require('url').decode_form
-local new_error_type = require('error').type.new
 -- constants
-local EDECODE = new_error_type('form.urlencoded.decode', nil,
-                               'form-urlencoded decode error')
+local EDECODE = require('error').type.new('form.urlencoded.decode', nil,
+                                          'form-urlencoded decode error')
 
 --- encode_value
 --- @param v any
---- @return string|nil v
---- @return boolean|nil is_child
+--- @return string? v
+--- @return boolean? is_child
 local function encode_value(v)
     local t = type(v)
     if t == 'string' then
@@ -56,11 +54,11 @@ local function encode_value(v)
 end
 
 --- to_flatkey
----@param k any
----@param prefix string|nil
----@return string|nil
+--- @param k any
+--- @param prefix? string
+--- @return string? key
 local function to_flatkey(k, prefix)
-    if is_string(k) then
+    if type(k) == 'string' then
         if prefix then
             return prefix .. '.' .. k
         end
@@ -70,12 +68,25 @@ local function to_flatkey(k, prefix)
     end
 end
 
+--- @class form.urlencoded.writer
+--- @field write fun(self, s:string):(n:integer?,err:any)
+
+--- @class form.urlencoded.default_writer : form.urlencoded.writer
+--- @field params string[]
+local DefaultWriter = {
+    params = {},
+    write = function(self, s)
+        self.params[#self.params + 1] = s
+        return #s, nil
+    end,
+}
+
 --- encode_flat
----@param writer table|userdata
----@param form table
----@return integer|nil nbyte
----@return any error
-local function encode_flat(writer, form)
+--- @param form table
+--- @param writer form.urlencoded.writer|form.urlencoded.default_writer
+--- @return integer|string? res
+--- @return any err
+local function encode_flat(form, writer)
     local stack = {}
     local ctx = {
         tbl = form,
@@ -91,9 +102,9 @@ local function encode_flat(writer, form)
         for k, v in pairs(ctx.tbl) do
             local key = to_flatkey(k, prefix)
             if key then
-                local val, is_child = encode_value(v)
+                local val, has_child = encode_value(v)
                 if val then
-                    if prev then
+                    if writer and prev then
                         local n, err = writer:write(prev .. '&')
                         if err then
                             return nil, err
@@ -101,7 +112,7 @@ local function encode_flat(writer, form)
                         nbyte = nbyte + n
                     end
                     prev = encode_form(key) .. '=' .. val
-                elseif is_child and not circular[v] then
+                elseif has_child and not circular[v] then
                     stack[#stack + 1] = {
                         prefix = key,
                         tbl = v,
@@ -119,36 +130,49 @@ local function encode_flat(writer, form)
         if err then
             return nil, err
         end
-        return nbyte + n
+        nbyte = nbyte + n
     end
 
-    return 0
+    if writer == DefaultWriter then
+        return concat(writer.params, '')
+    end
+
+    return nbyte
 end
 
 --- encode
 --- @param form table
 --- @param deeply boolean
---- @return integer|nil nbyte
+--- @param writer form.urlencoded.writer
+--- @return integer|string? res
 --- @return any err
-local function encode(writer, form, deeply)
-    if not pcall(function()
-        assert(is_func(writer.write))
+local function encode(form, deeply, writer)
+    if type(form) ~= 'table' then
+        error('form must be table', 2)
+    elseif deeply ~= nil and type(deeply) ~= 'boolean' then
+        error('deeply must be boolean', 2)
+    end
+
+    if writer == nil then
+        writer = DefaultWriter
+        writer.params = {}
+    elseif not pcall(function()
+        assert(type(writer.write) == 'function')
     end) then
         error('writer.write must be function', 2)
-    elseif not is_table(form) then
-        error('form must be table', 2)
-    elseif deeply ~= nil and not is_boolean(deeply) then
-        error('deeply must be boolean', 2)
-    elseif deeply then
-        return encode_flat(writer, form)
+    end
+
+    if deeply then
+        return encode_flat(form, writer)
     end
 
     local prev
     local nbyte = 0
     for k, v in pairs(form) do
-        if is_string(k) and is_table(v) then
-            for _, val in ipairs(v) do
-                val = encode_value(val)
+        if type(k) == 'string' then
+            local t = type(v)
+            if t == 'string' then
+                local val = encode_value(v)
                 if val then
                     if prev then
                         local n, err = writer:write(prev .. '&')
@@ -159,6 +183,21 @@ local function encode(writer, form, deeply)
                     end
                     prev = encode_form(k) .. '=' .. val
                 end
+            elseif t == 'table' and #v > 0 then
+                k = encode_form(k)
+                for _, val in ipairs(v) do
+                    val = encode_value(val)
+                    if val then
+                        if prev then
+                            local n, err = writer:write(prev .. '&')
+                            if err then
+                                return nil, err
+                            end
+                            nbyte = nbyte + n
+                        end
+                        prev = k .. '=' .. val
+                    end
+                end
             end
         end
     end
@@ -168,9 +207,12 @@ local function encode(writer, form, deeply)
         if err then
             return nil, err
         end
-        return nbyte + n
+        nbyte = nbyte + n
     end
 
+    if writer == DefaultWriter then
+        return concat(writer.params, '')
+    end
     return nbyte
 end
 
@@ -267,52 +309,40 @@ local function decode_kvpair(form, kv, deeply)
     end
 end
 
---- decode
---- @param reader table|userdata
---- @param deeply boolean
---- @return table|nil form
---- @return any err
-local function decode(reader, chunksize, deeply)
-    -- verify reader
-    if not pcall(function()
-        assert(is_func(reader.read))
-    end) then
-        error('reader.read must be function', 2)
-    end
+--- @class form.urlencoded.reader
+--- @field read fun(self, n:integer):(s:string?,err:any)
 
-    -- verify chunksize
-    if chunksize == nil then
+--- decode
+--- @param reader string|form.urlencoded.reader
+--- @param deeply boolean
+--- @param chunksize? integer
+--- @return table? form
+--- @return any err
+local function decode(reader, deeply, chunksize)
+    local str = ''
+    local with_reader = true
+
+    -- verify reader
+    if type(reader) == 'string' then
+        str = reader
+        with_reader = false
+    elseif not pcall(function()
+        assert(type(reader.read) == 'function')
+    end) then
+        error('reader must be string or it must have read method', 2)
+    elseif chunksize == nil then
         chunksize = 4096
     elseif not is_uint(chunksize) or chunksize < 1 then
         error('chunksize must be uint greater than 0', 2)
     end
 
     -- verify deeply
-    if deeply ~= nil and not is_boolean(deeply) then
+    if deeply ~= nil and type(deeply) ~= 'boolean' then
         error('deeply must be boolean', 2)
     end
 
     local form = {}
-    local str = ''
-
     while true do
-        -- read chunk
-        local s, err = reader:read(chunksize)
-        if err then
-            return nil, err
-        elseif not s or #s == 0 then
-            -- use remaining string as key
-            str = match(str, '^%s*(.-)%s*$')
-            if #str > 0 then
-                err = decode_kvpair(form, str, deeply)
-                if err then
-                    return nil, err
-                end
-            end
-            return form
-        end
-        str = str .. s
-
         -- find delimiter
         local head, tail = find(str, '&+')
         while head do
@@ -320,15 +350,37 @@ local function decode(reader, chunksize, deeply)
 
             str = sub(str, tail + 1)
             if #kv > 0 then
-                err = decode_kvpair(form, kv, deeply)
+                local err = decode_kvpair(form, kv, deeply)
                 if err then
                     return nil, err
                 end
             end
-
             head, tail = find(str, '&+')
         end
+
+        if not with_reader then
+            break
+        end
+
+        -- read chunk
+        local s, err = reader:read(chunksize)
+        if err then
+            return nil, err
+        elseif not s or #s == 0 then
+            break
+        end
+        str = str .. s
     end
+
+    -- use remaining string as key
+    str = match(str, '^%s*(.-)%s*$')
+    if #str > 0 then
+        local err = decode_kvpair(form, str, deeply)
+        if err then
+            return nil, err
+        end
+    end
+    return form
 end
 
 return {

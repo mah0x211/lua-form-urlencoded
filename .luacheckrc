@@ -4,6 +4,5 @@ include_files = {
     "test/*_test.lua",
 }
 ignore = {
-    'assert',
     '631', -- line is too long.
 }
