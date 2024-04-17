@@ -11,8 +11,8 @@ description = {
 }
 dependencies = {
     "lua >= 5.1",
-    "errno >= 0.3.0",
-    "isa >= 0.3.0",
+    "error >= 0.13.0",
+    "lauxhlib >= 0.6.0",
     "url >= 2.1.0",
 }
 build = {

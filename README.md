@@ -15,12 +15,14 @@ luarocks install form-urlencoded
 ```
 
 
-## n, err = urlencoded.encode( writer, form [, deeply] )
+## res, err = urlencoded.encode( form [, deeply [, writer]] )
 
 encode a form table to string in `application/x-www-form-urlencoded` format.
 
 **Parameters**
 
+- `form:table`: a table.
+- `deeply:boolean`: `true` to deeply encode a table. (default: `false`)
 - `writer:table|userdata`: call the `writer:write` method to output a string in `application/x-www-form-urlencoded` format.
     ```
     n, err = writer:write( s )
@@ -28,12 +30,12 @@ encode a form table to string in `application/x-www-form-urlencoded` format.
     - err:any: error value.
     - s:string: output string.
     ```
-- `form:table`: a table.
-- `deeply:boolean`: `true` to deeply encode a table. (default: `false`)
 
 **Returns**
 
-- `n:integer`: total number of bytes written.
+- `res:string|integer`: a string in `application/x-www-form-urlencoded` format, or number of bytes written.
+  - if the `writer` parameter is not specified, it returns a string in `application/x-www-form-urlencoded` format.
+  - otherwise, it returns the number of bytes written to the `writer:write` method.
 - `err:any`: error value.
 
 
@@ -42,17 +44,9 @@ encode a form table to string in `application/x-www-form-urlencoded` format.
 
 ```lua
 local urlencoded = require('form.urlencoded')
-local str
-local writer = {
-    write = function(_, s)
-        str = str .. s
-        return #s
-    end,
-}
 
 -- encode a table to application/x-www-form-urlencoded format string
-str = ''
-local n = urlencoded.encode(writer, {
+local str = urlencoded.encode({
     foo = {
         'hello world!',
     },
@@ -72,12 +66,10 @@ local n = urlencoded.encode(writer, {
         },
     },
 })
-assert(n == #str)
-print(str) -- foo=hello+world!
+print(str) -- foo=hello+world%21
 
 -- deeply encode a table to application/x-www-form-urlencoded format string
-str = ''
-n = urlencoded.encode(writer, {
+str = urlencoded.encode({
     foo = {
         'hello world!',
     },
@@ -97,8 +89,7 @@ n = urlencoded.encode(writer, {
         },
     },
 }, true)
-assert(n == #str)
-print(str) -- foo=hello+world!&bar.baz=123.5&bar.baa=true&bar.qux=hello&bar.qux=world&bar.qux.quux=value
+print(str) -- foo=hello+world%21&bar.baz=123.5&bar.qux=hello&bar.qux=world&bar.qux.quux=value&bar.baa=true
 ```
 
 
