@@ -72,14 +72,24 @@ end
 --- @field write fun(self, s:string):(n:integer?,err:any)
 
 --- @class form.urlencoded.default_writer : form.urlencoded.writer
---- @field params string[]
+--- @field params? string[]
 local DefaultWriter = {
-    params = {},
     write = function(self, s)
         self.params[#self.params + 1] = s
         return #s, nil
     end,
 }
+
+--- reset_default_writer
+--- @param writer form.urlencoded.writer
+--- @return string[]? params
+local function reset_default_writer(writer)
+    if writer == DefaultWriter and DefaultWriter.params then
+        local params = DefaultWriter.params
+        DefaultWriter.params = nil
+        return params
+    end
+end
 
 --- encode_flat
 --- @param form table
@@ -107,6 +117,7 @@ local function encode_flat(form, writer)
                     if writer and prev then
                         local n, err = writer:write(prev .. '&')
                         if err then
+                            reset_default_writer(writer)
                             return nil, err
                         end
                         nbyte = nbyte + n
@@ -128,13 +139,15 @@ local function encode_flat(form, writer)
     if prev then
         local n, err = writer:write(prev)
         if err then
+            reset_default_writer(writer)
             return nil, err
         end
         nbyte = nbyte + n
     end
 
-    if writer == DefaultWriter then
-        return concat(writer.params, '')
+    local params = reset_default_writer(writer)
+    if params then
+        return concat(params, '')
     end
 
     return nbyte
@@ -177,6 +190,7 @@ local function encode(form, deeply, writer)
                     if prev then
                         local n, err = writer:write(prev .. '&')
                         if err then
+                            reset_default_writer(writer)
                             return nil, err
                         end
                         nbyte = nbyte + n
@@ -191,6 +205,7 @@ local function encode(form, deeply, writer)
                         if prev then
                             local n, err = writer:write(prev .. '&')
                             if err then
+                                reset_default_writer(writer)
                                 return nil, err
                             end
                             nbyte = nbyte + n
@@ -205,13 +220,15 @@ local function encode(form, deeply, writer)
     if prev then
         local n, err = writer:write(prev)
         if err then
+            reset_default_writer(writer)
             return nil, err
         end
         nbyte = nbyte + n
     end
 
-    if writer == DefaultWriter then
-        return concat(writer.params, '')
+    local params = reset_default_writer(writer)
+    if params then
+        return concat(params, '')
     end
     return nbyte
 end
