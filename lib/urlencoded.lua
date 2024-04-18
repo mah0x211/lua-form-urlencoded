@@ -330,23 +330,23 @@ end
 --- @field read fun(self, n:integer):(s:string?,err:any)
 
 --- decode
---- @param reader string|form.urlencoded.reader
+--- @param chunk string|form.urlencoded.reader
 --- @param deeply boolean
 --- @param chunksize? integer
 --- @return table? form
 --- @return any err
-local function decode(reader, deeply, chunksize)
+local function decode(chunk, deeply, chunksize)
     local str = ''
-    local with_reader = true
+    local no_read = true
 
-    -- verify reader
-    if type(reader) == 'string' then
-        str = reader
-        with_reader = false
+    -- verify chunk
+    if type(chunk) == 'string' then
+        str = chunk
+        no_read = false
     elseif not pcall(function()
-        assert(type(reader.read) == 'function')
+        assert(type(chunk.read) == 'function')
     end) then
-        error('reader must be string or it must have read method', 2)
+        error('chunk must be string or it must have read method', 2)
     elseif chunksize == nil then
         chunksize = 4096
     elseif not is_uint(chunksize) or chunksize < 1 then
@@ -375,12 +375,12 @@ local function decode(reader, deeply, chunksize)
             head, tail = find(str, '&+')
         end
 
-        if not with_reader then
+        if not no_read then
             break
         end
 
         -- read chunk
-        local s, err = reader:read(chunksize)
+        local s, err = chunk:read(chunksize)
         if err then
             return nil, err
         elseif not s or #s == 0 then
