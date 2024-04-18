@@ -289,7 +289,7 @@ function testcase.decode()
 
     -- test that throws an error if first argument is not string
     local err = assert.throws(urlencoded.decode, true)
-    assert.match(err, 'reader must be string')
+    assert.match(err, 'chunk must be string')
 
     -- test that throws an error if deeply argument is not boolean
     err = assert.throws(urlencoded.decode, '', 'true')
@@ -425,7 +425,7 @@ function testcase.decode_with_reader()
 
     -- test that throws an error if reader.read is not function
     err = assert.throws(urlencoded.decode, {})
-    assert.match(err, 'reader must be string or it must have read method')
+    assert.match(err, 'chunk must be string or it must have read method')
 
     -- test that throws an error if chunksize is not uint
     err = assert.throws(urlencoded.decode, reader, nil, true)

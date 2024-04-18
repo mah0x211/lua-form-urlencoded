@@ -112,22 +112,22 @@ print(str) -- hello=world&bar.baa=true&bar.baz=123.5&bar.qux=hello&bar.qux=world
 ```
 
 
-## form, err = urlencoded.decode( reader [, deeply [, chunksize]] )
+## form, err = urlencoded.decode( chunk [, deeply [, chunksize]] )
 
 decode a string in `application/x-www-form-urlencoded` format into a table.
 
 **Parameters**
 
-- `reader:string|table|userdata`: a string in `application/x-www-form-urlencoded` format.
-    - if the `reader` parameter is not a string, it must have a `reader.read` method.
+- `chunk:string|table|userdata`: a string in `application/x-www-form-urlencoded` format.
+    - if the `chunk` parameter is not a string, it must have a `chunk.read` method.
       ```
-      s, err = reader:read( n )
+      s, err = chunk:read( n )
       - n:integer: number of bytes read.
       - s:string: a string in application/x-www-form-urlencoded format.
       - err:any: error value.
       ```
 - `deeply:boolean`: `true` to deeply decode a `application/x-www-form-urlencoded` string.
-- `chunksize:integer`: if the `reader` parameter is not a string, number of byte to read from the `reader.read` method. this value must be greater than `0`. (default: `4096`)
+- `chunksize:integer`: if the `chunk` parameter is not a string, number of byte to read from the `chunk:read` method. this value must be greater than `0`. (default: `4096`)
 
 **Returns**
 
