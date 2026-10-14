@@ -198,7 +198,7 @@ local function encode(form, deeply, writer)
                     prev = encode_form(k) .. '=' .. val
                 end
             elseif t == 'table' and #v > 0 then
-                k = encode_form(k)
+                local k = encode_form(k)
                 for _, val in ipairs(v) do
                     val = encode_value(val)
                     if val then
