@@ -198,7 +198,7 @@ local function encode(form, deeply, writer)
                     prev = encode_form(k) .. '=' .. val
                 end
             elseif t == 'table' and #v > 0 then
-                local k = encode_form(k)
+                local key = encode_form(k)
                 for _, value in ipairs(v) do
                     local val = encode_value(value)
                     if val then
@@ -210,7 +210,7 @@ local function encode(form, deeply, writer)
                             end
                             nbyte = nbyte + n
                         end
-                        prev = k .. '=' .. val
+                        prev = key .. '=' .. val
                     end
                 end
             end
@@ -237,7 +237,7 @@ end
 --- @param form table
 --- @param key string
 --- @param val string
---- @param deeply boolean
+--- @param deeply? boolean
 --- @return table form
 local function push2form(form, key, val, deeply)
     local list = form
@@ -258,15 +258,13 @@ local function push2form(form, key, val, deeply)
             tail = find(key, '.', pos, true)
         end
 
-        if pos < #key then
-            local k = sub(key, pos)
-            local child = list[k]
-            if not child then
-                child = {}
-                list[k] = child
-            end
-            list = child
+        local k = sub(key, pos)
+        local child = list[k]
+        if not child then
+            child = {}
+            list[k] = child
         end
+        list = child
     else
         local child = list[key]
         if not child then
@@ -282,7 +280,7 @@ end
 
 --- decode_value
 --- @param v string
---- @return string v
+--- @return string? v
 --- @return any err
 local function decode_value(v)
     local dec, err = decode_form(v)
@@ -296,7 +294,7 @@ end
 --- decode_kvpair
 --- @param form table
 --- @param kv string
---- @param deeply boolean
+--- @param deeply? boolean
 --- @return any err
 local function decode_kvpair(form, kv, deeply)
     -- find key/value separator
@@ -331,7 +329,7 @@ end
 
 --- decode
 --- @param chunk string|form.urlencoded.reader
---- @param deeply boolean
+--- @param deeply? boolean
 --- @param chunksize? integer
 --- @return table? form
 --- @return any err
