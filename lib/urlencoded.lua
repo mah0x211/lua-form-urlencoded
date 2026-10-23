@@ -184,7 +184,7 @@ local function encode(form, deeply, writer)
     for k, v in pairs(form) do
         if type(k) == 'string' then
             local t = type(v)
-            if t == 'string' then
+            if t == 'string' or t == 'number' or t == 'boolean' then
                 local val = encode_value(v)
                 if val then
                     if prev then
