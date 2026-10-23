@@ -72,29 +72,21 @@ end
 --- @field write fun(self, s:string):(n:integer?,err:any)
 
 --- @class form.urlencoded.default_writer : form.urlencoded.writer
---- @field params? string[]
-local DefaultWriter = {
-    write = function(self, s)
-        self.params[#self.params + 1] = s
-        return #s, nil
-    end,
-}
+--- @field params string[]
 
---- reset_default_writer
---- @param writer form.urlencoded.writer
---- @return string[]? params
-local function reset_default_writer(writer)
-    if writer == DefaultWriter and DefaultWriter.params then
-        local params = DefaultWriter.params
-        DefaultWriter.params = nil
-        return params
-    end
+--- default_write
+--- @param self form.urlencoded.default_writer
+--- @param s string
+--- @return integer n
+local function default_write(self, s)
+    self.params[#self.params + 1] = s
+    return #s
 end
 
 --- encode_flat
 --- @param form table
 --- @param writer form.urlencoded.writer|form.urlencoded.default_writer
---- @return integer|string? res
+--- @return integer? res
 --- @return any err
 local function encode_flat(form, writer)
     local stack = {}
@@ -117,7 +109,6 @@ local function encode_flat(form, writer)
                     if writer and prev then
                         local n, err = writer:write(prev .. '&')
                         if err then
-                            reset_default_writer(writer)
                             return nil, err
                         end
                         nbyte = nbyte + n
@@ -139,15 +130,9 @@ local function encode_flat(form, writer)
     if prev then
         local n, err = writer:write(prev)
         if err then
-            reset_default_writer(writer)
             return nil, err
         end
         nbyte = nbyte + n
-    end
-
-    local params = reset_default_writer(writer)
-    if params then
-        return concat(params, '')
     end
 
     return nbyte
@@ -155,9 +140,9 @@ end
 
 --- encode
 --- @param form table
---- @param deeply boolean
---- @param writer form.urlencoded.writer
---- @return integer|string? res
+--- @param deeply? boolean
+--- @param writer? form.urlencoded.writer
+--- @return string|integer|nil res
 --- @return any err
 local function encode(form, deeply, writer)
     if type(form) ~= 'table' then
@@ -166,9 +151,13 @@ local function encode(form, deeply, writer)
         error('deeply must be boolean', 2)
     end
 
+    local params
     if writer == nil then
-        writer = DefaultWriter
-        writer.params = {}
+        params = {}
+        writer = {
+            write = default_write,
+            params = params,
+        }
     elseif not pcall(function()
         assert(type(writer.write) == 'function')
     end) then
@@ -176,7 +165,11 @@ local function encode(form, deeply, writer)
     end
 
     if deeply then
-        return encode_flat(form, writer)
+        local n, err = encode_flat(form, writer)
+        if n and params then
+            return concat(params, '')
+        end
+        return n, err
     end
 
     local prev
@@ -190,7 +183,6 @@ local function encode(form, deeply, writer)
                     if prev then
                         local n, err = writer:write(prev .. '&')
                         if err then
-                            reset_default_writer(writer)
                             return nil, err
                         end
                         nbyte = nbyte + n
@@ -205,7 +197,6 @@ local function encode(form, deeply, writer)
                         if prev then
                             local n, err = writer:write(prev .. '&')
                             if err then
-                                reset_default_writer(writer)
                                 return nil, err
                             end
                             nbyte = nbyte + n
@@ -220,13 +211,11 @@ local function encode(form, deeply, writer)
     if prev then
         local n, err = writer:write(prev)
         if err then
-            reset_default_writer(writer)
             return nil, err
         end
         nbyte = nbyte + n
     end
 
-    local params = reset_default_writer(writer)
     if params then
         return concat(params, '')
     end
