@@ -31,9 +31,14 @@ encode a form table to string in `application/x-www-form-urlencoded` format.
     - s:string: output string.
     ```
 
+The writer controls the output operation. If `writer:write` returns a truthy
+`err`, encoding stops and returns `nil, err`. Otherwise, its returned byte count
+`n` is added to the total. Partial and zero-byte writes are not retried or treated
+as errors.
+
 **Returns**
 
-- `res:string|integer`: a string in `application/x-www-form-urlencoded` format, or number of bytes written.
+- `res:string|integer|nil`: a string in `application/x-www-form-urlencoded` format, or number of bytes written.
   - if the `writer` parameter is not specified, it returns a string in `application/x-www-form-urlencoded` format.
   - otherwise, it returns the number of bytes written to the `writer:write` method.
 - `err:any`: error value.
@@ -60,6 +65,11 @@ key=value-1&key=value-2
 ```
 
 it encodes only the first level of the table by default. if you want to encode deeply, set the `deeply` parameter to `true`.
+
+With `deeply=true`, a reference to a table already on the current traversal path
+returns `nil, err` with error type `form.urlencoded.encode`. Shared tables on
+separate paths are encoded independently. On error, no buffered result string is
+returned; any data already written to a supplied writer remains written.
 
 
 **Usage**
@@ -122,17 +132,24 @@ decode a string in `application/x-www-form-urlencoded` format into a table.
     - if the `chunk` parameter is not a string, it must have a `chunk.read` method.
       ```
       s, err = chunk:read( n )
-      - n:integer: number of bytes read.
-      - s:string: a string in application/x-www-form-urlencoded format.
+      - n:integer: maximum number of bytes to read.
+      - s:string|nil: input data; nil or an empty string indicates end of input.
       - err:any: error value.
       ```
-- `deeply:boolean`: `true` to deeply decode a `application/x-www-form-urlencoded` string.
+- `deeply:boolean`: `true` to deeply decode a `application/x-www-form-urlencoded` string. (default: `false`)
 - `chunksize:integer`: if the `chunk` parameter is not a string, number of byte to read from the `chunk:read` method. this value must be greater than `0`. (default: `4096`)
 
 **Returns**
 
-- `form:table`: a table contains the decoded values.
+- `form:table|nil`: a table containing the decoded values, or nil on error.
 - `err:any`: an error value.
+
+**NOTE:** With `deeply=true`, decoded keys are split at every `.` to form nested
+tables. Empty segments, including leading and trailing segments, are empty-string
+keys. For example, `foo.=v` becomes `{ foo = { [""] = { "v" } } }`.
+Percent-encoded dots (`%2E`) also act as separators after decoding; literal dots
+in key names are therefore not preserved in deep mode. Pairs with an entirely
+empty name, such as `=value`, are ignored.
 
 **Usage**
 

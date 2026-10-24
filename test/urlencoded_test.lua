@@ -282,7 +282,7 @@ function testcase.decode()
         'fo%0o=bar',
         'foo=ba%r',
     }) do
-        -- test that EILSEQ if invalid character found in key
+        -- test that invalid percent-encoding returns a decode error
         local _, err = urlencoded.decode(v)
         assert.match(err, 'illegal character "%" found')
     end
@@ -406,7 +406,7 @@ function testcase.decode_with_reader()
         'fo%0o=bar',
         'foo=ba%r',
     }) do
-        -- test that EILSEQ if invalid character found in key
+        -- test that invalid percent-encoding returns a decode error
         str = v
         local _, err = urlencoded.decode(reader)
         assert.match(err, 'illegal character "%" found')

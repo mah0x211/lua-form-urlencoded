@@ -36,6 +36,8 @@ local is_uint = is.uint
 local encode_form = require('url').encode_form
 local decode_form = require('url').decode_form
 -- constants
+local EENCODE = require('error').type.new('form.urlencoded.encode', nil,
+                                          'form-urlencoded encode error')
 local EDECODE = require('error').type.new('form.urlencoded.decode', nil,
                                           'form-urlencoded decode error')
 
@@ -72,29 +74,21 @@ end
 --- @field write fun(self, s:string):(n:integer?,err:any)
 
 --- @class form.urlencoded.default_writer : form.urlencoded.writer
---- @field params? string[]
-local DefaultWriter = {
-    write = function(self, s)
-        self.params[#self.params + 1] = s
-        return #s, nil
-    end,
-}
+--- @field params string[]
 
---- reset_default_writer
---- @param writer form.urlencoded.writer
---- @return string[]? params
-local function reset_default_writer(writer)
-    if writer == DefaultWriter and DefaultWriter.params then
-        local params = DefaultWriter.params
-        DefaultWriter.params = nil
-        return params
-    end
+--- default_write
+--- @param self form.urlencoded.default_writer
+--- @param s string
+--- @return integer n
+local function default_write(self, s)
+    self.params[#self.params + 1] = s
+    return #s
 end
 
 --- encode_flat
 --- @param form table
 --- @param writer form.urlencoded.writer|form.urlencoded.default_writer
---- @return integer|string? res
+--- @return integer? res
 --- @return any err
 local function encode_flat(form, writer)
     local stack = {}
@@ -102,32 +96,44 @@ local function encode_flat(form, writer)
         tbl = form,
     }
     local nbyte = 0
-    local circular = {}
+    local ancestors = {}
     local prev
 
     while ctx do
         local prefix = ctx.prefix
 
-        circular[ctx.tbl] = true
-        for k, v in pairs(ctx.tbl) do
-            local key = to_flatkey(k, prefix)
-            if key then
-                local val, has_child = encode_value(v)
-                if val then
-                    if writer and prev then
-                        local n, err = writer:write(prev .. '&')
-                        if err then
-                            reset_default_writer(writer)
-                            return nil, err
+        if ctx.leave then
+            ancestors[ctx.tbl] = nil
+        else
+            ancestors[ctx.tbl] = true
+            -- Leave this table only after all queued children have been processed.
+            ctx.leave = true
+            stack[#stack + 1] = ctx
+            for k, v in pairs(ctx.tbl) do
+                local key = to_flatkey(k, prefix)
+                if key then
+                    local val, has_child = encode_value(v)
+                    if val then
+                        if prev then
+                            local n, err = writer:write(prev .. '&')
+                            if err then
+                                return nil, err
+                            end
+                            nbyte = nbyte + n
                         end
-                        nbyte = nbyte + n
+                        prev = encode_form(key) .. '=' .. val
+                    elseif has_child then
+                        if ancestors[v] then
+                            return nil, EENCODE:new(
+                                       format(
+                                           'circular reference found at key %q',
+                                           key))
+                        end
+                        stack[#stack + 1] = {
+                            prefix = key,
+                            tbl = v,
+                        }
                     end
-                    prev = encode_form(key) .. '=' .. val
-                elseif has_child and not circular[v] then
-                    stack[#stack + 1] = {
-                        prefix = key,
-                        tbl = v,
-                    }
                 end
             end
         end
@@ -139,15 +145,9 @@ local function encode_flat(form, writer)
     if prev then
         local n, err = writer:write(prev)
         if err then
-            reset_default_writer(writer)
             return nil, err
         end
         nbyte = nbyte + n
-    end
-
-    local params = reset_default_writer(writer)
-    if params then
-        return concat(params, '')
     end
 
     return nbyte
@@ -155,9 +155,9 @@ end
 
 --- encode
 --- @param form table
---- @param deeply boolean
---- @param writer form.urlencoded.writer
---- @return integer|string? res
+--- @param deeply? boolean
+--- @param writer? form.urlencoded.writer
+--- @return string|integer|nil res
 --- @return any err
 local function encode(form, deeply, writer)
     if type(form) ~= 'table' then
@@ -166,9 +166,13 @@ local function encode(form, deeply, writer)
         error('deeply must be boolean', 2)
     end
 
+    local params
     if writer == nil then
-        writer = DefaultWriter
-        writer.params = {}
+        params = {}
+        writer = {
+            write = default_write,
+            params = params,
+        }
     elseif not pcall(function()
         assert(type(writer.write) == 'function')
     end) then
@@ -176,7 +180,11 @@ local function encode(form, deeply, writer)
     end
 
     if deeply then
-        return encode_flat(form, writer)
+        local n, err = encode_flat(form, writer)
+        if n and params then
+            return concat(params, '')
+        end
+        return n, err
     end
 
     local prev
@@ -184,13 +192,12 @@ local function encode(form, deeply, writer)
     for k, v in pairs(form) do
         if type(k) == 'string' then
             local t = type(v)
-            if t == 'string' then
+            if t == 'string' or t == 'number' or t == 'boolean' then
                 local val = encode_value(v)
                 if val then
                     if prev then
                         local n, err = writer:write(prev .. '&')
                         if err then
-                            reset_default_writer(writer)
                             return nil, err
                         end
                         nbyte = nbyte + n
@@ -198,19 +205,18 @@ local function encode(form, deeply, writer)
                     prev = encode_form(k) .. '=' .. val
                 end
             elseif t == 'table' and #v > 0 then
-                k = encode_form(k)
-                for _, val in ipairs(v) do
-                    val = encode_value(val)
+                local key = encode_form(k)
+                for _, value in ipairs(v) do
+                    local val = encode_value(value)
                     if val then
                         if prev then
                             local n, err = writer:write(prev .. '&')
                             if err then
-                                reset_default_writer(writer)
                                 return nil, err
                             end
                             nbyte = nbyte + n
                         end
-                        prev = k .. '=' .. val
+                        prev = key .. '=' .. val
                     end
                 end
             end
@@ -220,13 +226,11 @@ local function encode(form, deeply, writer)
     if prev then
         local n, err = writer:write(prev)
         if err then
-            reset_default_writer(writer)
             return nil, err
         end
         nbyte = nbyte + n
     end
 
-    local params = reset_default_writer(writer)
     if params then
         return concat(params, '')
     end
@@ -237,7 +241,7 @@ end
 --- @param form table
 --- @param key string
 --- @param val string
---- @param deeply boolean
+--- @param deeply? boolean
 --- @return table form
 local function push2form(form, key, val, deeply)
     local list = form
@@ -258,15 +262,13 @@ local function push2form(form, key, val, deeply)
             tail = find(key, '.', pos, true)
         end
 
-        if pos < #key then
-            local k = sub(key, pos)
-            local child = list[k]
-            if not child then
-                child = {}
-                list[k] = child
-            end
-            list = child
+        local k = sub(key, pos)
+        local child = list[k]
+        if not child then
+            child = {}
+            list[k] = child
         end
+        list = child
     else
         local child = list[key]
         if not child then
@@ -282,7 +284,7 @@ end
 
 --- decode_value
 --- @param v string
---- @return string v
+--- @return string? v
 --- @return any err
 local function decode_value(v)
     local dec, err = decode_form(v)
@@ -296,7 +298,7 @@ end
 --- decode_kvpair
 --- @param form table
 --- @param kv string
---- @param deeply boolean
+--- @param deeply? boolean
 --- @return any err
 local function decode_kvpair(form, kv, deeply)
     -- find key/value separator
@@ -331,7 +333,7 @@ end
 
 --- decode
 --- @param chunk string|form.urlencoded.reader
---- @param deeply boolean
+--- @param deeply? boolean
 --- @param chunksize? integer
 --- @return table? form
 --- @return any err
