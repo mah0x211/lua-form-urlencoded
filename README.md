@@ -38,7 +38,7 @@ as errors.
 
 **Returns**
 
-- `res:string|integer`: a string in `application/x-www-form-urlencoded` format, or number of bytes written.
+- `res:string|integer|nil`: a string in `application/x-www-form-urlencoded` format, or number of bytes written.
   - if the `writer` parameter is not specified, it returns a string in `application/x-www-form-urlencoded` format.
   - otherwise, it returns the number of bytes written to the `writer:write` method.
 - `err:any`: error value.
@@ -65,6 +65,11 @@ key=value-1&key=value-2
 ```
 
 it encodes only the first level of the table by default. if you want to encode deeply, set the `deeply` parameter to `true`.
+
+With `deeply=true`, a reference to a table already on the current traversal path
+returns `nil, err` with error type `form.urlencoded.encode`. Shared tables on
+separate paths are encoded independently. On error, no buffered result string is
+returned; any data already written to a supplied writer remains written.
 
 
 **Usage**

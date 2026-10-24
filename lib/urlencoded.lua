@@ -36,6 +36,8 @@ local is_uint = is.uint
 local encode_form = require('url').encode_form
 local decode_form = require('url').decode_form
 -- constants
+local EENCODE = require('error').type.new('form.urlencoded.encode', nil,
+                                          'form-urlencoded encode error')
 local EDECODE = require('error').type.new('form.urlencoded.decode', nil,
                                           'form-urlencoded decode error')
 
@@ -94,31 +96,44 @@ local function encode_flat(form, writer)
         tbl = form,
     }
     local nbyte = 0
-    local circular = {}
+    local ancestors = {}
     local prev
 
     while ctx do
         local prefix = ctx.prefix
 
-        circular[ctx.tbl] = true
-        for k, v in pairs(ctx.tbl) do
-            local key = to_flatkey(k, prefix)
-            if key then
-                local val, has_child = encode_value(v)
-                if val then
-                    if writer and prev then
-                        local n, err = writer:write(prev .. '&')
-                        if err then
-                            return nil, err
+        if ctx.leave then
+            ancestors[ctx.tbl] = nil
+        else
+            ancestors[ctx.tbl] = true
+            -- Leave this table only after all queued children have been processed.
+            ctx.leave = true
+            stack[#stack + 1] = ctx
+            for k, v in pairs(ctx.tbl) do
+                local key = to_flatkey(k, prefix)
+                if key then
+                    local val, has_child = encode_value(v)
+                    if val then
+                        if prev then
+                            local n, err = writer:write(prev .. '&')
+                            if err then
+                                return nil, err
+                            end
+                            nbyte = nbyte + n
                         end
-                        nbyte = nbyte + n
+                        prev = encode_form(key) .. '=' .. val
+                    elseif has_child then
+                        if ancestors[v] then
+                            return nil, EENCODE:new(
+                                       format(
+                                           'circular reference found at key %q',
+                                           key))
+                        end
+                        stack[#stack + 1] = {
+                            prefix = key,
+                            tbl = v,
+                        }
                     end
-                    prev = encode_form(key) .. '=' .. val
-                elseif has_child and not circular[v] then
-                    stack[#stack + 1] = {
-                        prefix = key,
-                        tbl = v,
-                    }
                 end
             end
         end
