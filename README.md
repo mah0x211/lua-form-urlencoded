@@ -122,9 +122,19 @@ print(str) -- hello=world&bar.baa=true&bar.baz=123.5&bar.qux=hello&bar.qux=world
 ```
 
 
-## form, err = urlencoded.decode( chunk [, deeply [, chunksize]] )
+## form, err = urlencoded.decode( chunk [, opts] )
 
 decode a string in `application/x-www-form-urlencoded` format into a table.
+
+The positional form remains supported:
+
+```lua
+form, err = urlencoded.decode(chunk, deeply, chunksize)
+```
+
+A single optional table supplies named options. Other argument combinations
+use the positional form and its existing validation. The options table is not
+modified, and unsupported fields are ignored.
 
 **Parameters**
 
@@ -136,6 +146,10 @@ decode a string in `application/x-www-form-urlencoded` format into a table.
       - s:string|nil: input data; nil or an empty string indicates end of input.
       - err:any: error value.
       ```
+- `opts:table`: optional settings described below. Omitted fields use their defaults.
+
+**Options**
+
 - `deeply:boolean`: `true` to deeply decode a `application/x-www-form-urlencoded` string. (default: `false`)
 - `chunksize:integer`: if the `chunk` parameter is not a string, number of byte to read from the `chunk:read` method. this value must be greater than `0`. (default: `4096`)
 

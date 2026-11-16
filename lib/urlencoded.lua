@@ -29,6 +29,7 @@ local sub = string.sub
 local match = string.match
 local tostring = tostring
 local pcall = pcall
+local select = select
 local type = type
 local is = require('lauxhlib.is')
 local is_int = is.int
@@ -328,16 +329,50 @@ local function decode_kvpair(form, kv, deeply)
     end
 end
 
+--- Normalize options without modifying caller-owned tables.
+--- @param has_reader boolean
+--- @param ... table|boolean|integer|nil Options or legacy deeply, chunksize.
+--- @return table opts
+local function checkopts(has_reader, ...)
+    local narg = select('#', ...)
+    local deeply, chunksize = ...
+    local opts = deeply
+    if narg > 1 or type(deeply) ~= 'table' then
+        opts = {
+            deeply = deeply,
+            chunksize = chunksize,
+        }
+    end
+
+    chunksize = opts.chunksize
+    if has_reader then
+        if chunksize == nil then
+            chunksize = 4096
+        elseif not is_uint(chunksize) or chunksize < 1 then
+            error('chunksize must be uint greater than 0', 3)
+        end
+    end
+
+    deeply = opts.deeply
+    if deeply ~= nil and type(deeply) ~= 'boolean' then
+        error('deeply must be boolean', 3)
+    end
+
+    return {
+        deeply = deeply,
+        chunksize = chunksize,
+    }
+end
+
 --- @class form.urlencoded.reader
 --- @field read fun(self, n:integer):(s:string?,err:any)
 
 --- decode
 --- @param chunk string|form.urlencoded.reader
---- @param deeply? boolean
---- @param chunksize? integer
+--- @param ... table|boolean|integer|nil Options or legacy deeply, chunksize.
 --- @return table? form
 --- @return any err
-local function decode(chunk, deeply, chunksize)
+local function decode(chunk, ...)
     local str = ''
     local no_read = true
 
@@ -349,17 +384,11 @@ local function decode(chunk, deeply, chunksize)
         assert(type(chunk.read) == 'function')
     end) then
         error('chunk must be string or it must have read method', 2)
-    elseif chunksize == nil then
-        chunksize = 4096
-    elseif not is_uint(chunksize) or chunksize < 1 then
-        error('chunksize must be uint greater than 0', 2)
     end
 
-    -- verify deeply
-    if deeply ~= nil and type(deeply) ~= 'boolean' then
-        error('deeply must be boolean', 2)
-    end
-
+    local opts = checkopts(no_read, ...)
+    local deeply = opts.deeply
+    local chunksize = opts.chunksize
     local form = {}
     while true do
         -- find delimiter
