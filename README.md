@@ -135,6 +135,9 @@ form, err = urlencoded.decode(chunk, deeply, chunksize)
 A single optional table supplies named options. Other argument combinations
 use the positional form and its existing validation. The options table is not
 modified, and unsupported fields are ignored.
+Named options default to a 128 KB total-size limit. Positional calls, including
+calls without options, retain an unlimited total size. New settings such as
+`maxsize` require the options table.
 
 **Parameters**
 
@@ -152,6 +155,7 @@ modified, and unsupported fields are ignored.
 
 - `deeply:boolean`: `true` to deeply decode a `application/x-www-form-urlencoded` string. (default: `false`)
 - `chunksize:integer`: if the `chunk` parameter is not a string, number of byte to read from the `chunk:read` method. this value must be greater than `0`. (default: `4096`)
+- `maxsize:number`: maximum total received bytes before percent-decoding, including separators and whitespace. Omitted or nil defaults to 128 KB (`128 * 1024` bytes). Specify an integer to change the limit, or `math.huge` for no total-size limit. Negative integers are treated as zero; zero accepts only empty input. Exactly the limit is allowed. Exceeding it returns a `form.urlencoded.decode` error without a partial form. Read requests may be smaller than `chunksize` to detect excess input with at most one byte beyond the remaining budget.
 
 **Returns**
 
