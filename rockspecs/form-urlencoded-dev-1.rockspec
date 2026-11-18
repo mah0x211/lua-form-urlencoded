@@ -19,5 +19,7 @@ build = {
     type = "builtin",
     modules = {
         ["form.urlencoded"] = "lib/urlencoded.lua",
+        ["form.urlencoded.encode"] = "lib/encode.lua",
+        ["form.urlencoded.decode"] = "lib/decode.lua",
     },
 }
