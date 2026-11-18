@@ -46,7 +46,7 @@ as errors.
 
 **NOTE:**
 
-the supported value types are `string`, `number`, `boolean`, and `table`. if the value is a table, it will be encoded each value as multiple values like the following example.
+The supported scalar values are `string`, `number`, and `boolean`. A table can supply multiple values for the same field.
 
 ```
 {
@@ -64,10 +64,9 @@ will be encoded as
 key=value-1&key=value-2
 ```
 
-it encodes only the first level of the table by default. if you want to encode deeply, set the `deeply` parameter to `true`.
+By default, only top-level string keys are encoded. For a table-valued field, the encoder uses `ipairs` to visit consecutive indices starting at 1, stopping at the first missing index. It encodes scalar values at those indices.
 
-With `deeply=true`, entries with integer keys in each nested table are encoded
-in ascending key order.
+Set `deeply=true` to traverse nested tables. Entries with integer keys in each nested table are encoded in ascending key order.
 
 With `deeply=true`, a reference to a table already on the current traversal path
 returns `nil, err` with error type `form.urlencoded.encode`. Shared tables on
@@ -77,6 +76,7 @@ returned; any data already written to a supplied writer remains written.
 
 **Usage**
 
+The order of distinct fields is unspecified. The output comments show one possible order.
 
 ```lua
 local urlencoded = require('form.urlencoded')
@@ -121,7 +121,7 @@ str = urlencoded.encode({
         },
     },
 }, true)
-print(str) -- hello=world&bar.baa=true&bar.baz=123.5&bar.qux=hello&bar.qux=world&bar.qux.quux=value&foo=value-1&foo=value-2
+print(str) -- hello=world&foo=value-1&foo=value-2&bar.baa=true&bar.baz=123.5&bar.qux=hello&bar.qux=world&bar.qux.quux=value
 ```
 
 
@@ -165,12 +165,9 @@ calls without options, retain an unlimited total size. New settings such as
 - `form:table|nil`: a table containing the decoded values, or nil on error.
 - `err:any`: an error value.
 
-**NOTE:** With `deeply=true`, decoded keys are split at every `.` to form nested
-tables. Empty segments, including leading and trailing segments, are empty-string
-keys. For example, `foo.=v` becomes `{ foo = { [""] = { "v" } } }`.
-Percent-encoded dots (`%2E`) also act as separators after decoding; literal dots
-in key names are therefore not preserved in deep mode. Pairs with an entirely
-empty name, such as `=value`, are ignored.
+**NOTE:** Leading and trailing whitespace is trimmed from each raw `&`-separated field before splitting it at `=` and decoding it. Use `+` or `%20` for a space that should be preserved.
+
+With `deeply=true`, decoded keys are split at every `.` to form nested tables. Empty segments, including leading and trailing segments, are empty-string keys. For example, `foo.=v` becomes `{ foo = { [""] = { "v" } } }`. Percent-encoded dots (`%2E`) also act as separators after decoding; literal dots in key names are therefore not preserved in deep mode. Pairs with an entirely empty name, such as `=value`, are ignored.
 
 **Usage**
 
