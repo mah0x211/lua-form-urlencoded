@@ -66,6 +66,9 @@ key=value-1&key=value-2
 
 it encodes only the first level of the table by default. if you want to encode deeply, set the `deeply` parameter to `true`.
 
+With `deeply=true`, entries with integer keys in each nested table are encoded
+in ascending key order.
+
 With `deeply=true`, a reference to a table already on the current traversal path
 returns `nil, err` with error type `form.urlencoded.encode`. Shared tables on
 separate paths are encoded independently. On error, no buffered result string is
